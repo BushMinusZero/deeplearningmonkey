@@ -1,6 +1,6 @@
 import os
 import sys
-from dnn import *
+from src.dnn import *
 import numpy as np
 import h5py
 

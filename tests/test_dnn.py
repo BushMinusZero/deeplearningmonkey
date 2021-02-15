@@ -1,6 +1,6 @@
 import os
 import sys
-from dnn import *
+from src.dnn import *
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 parameters = initialize_parameters(3,2,1)

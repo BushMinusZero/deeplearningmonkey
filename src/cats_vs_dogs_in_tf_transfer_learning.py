@@ -1,3 +1,4 @@
+
 """
 Predict whether a photo is a cat or a dog.
 
@@ -16,15 +17,20 @@ zip_ref = zipfile.ZipFile(local_zip, 'r')
 zip_ref.extractall('data/')
 zip_ref.close()
 
-3) Follow the rest of the code to train and evaluate the cat vs dog model.
+3) Download Inception model weights
+wget --no-check-certificate https://storage.googleapis.com/mledu-datasets/inception_v3_weights_tf_dim_ordering_tf_kernels_notop.h5
+
+4) Follow the rest of the code to train and evaluate the cat vs dog model.
 """
 
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
 import tensorflow as tf
+from tensorflow.keras import layers
+from tensorflow.keras import Model
+
 import os
 
-base_dir = 'data/cats_and_dogs_filtered'
+
+base_dir = '../data/cats_and_dogs_filtered'
 
 train_dir = os.path.join(base_dir, 'train')
 validation_dir = os.path.join(base_dir, 'validation')
@@ -37,26 +43,39 @@ train_dogs_dir = os.path.join(train_dir, 'dogs')
 validation_cats_dir = os.path.join(validation_dir, 'cats')
 validation_dogs_dir = os.path.join(validation_dir, 'dogs')
 
-INPUT_SHAPE = (150, 150)
 
-model = tf.keras.models.Sequential([
-    tf.keras.layers.Conv2D(16, (3,3), activation='relu', input_shape=(INPUT_SHAPE[0], INPUT_SHAPE[1], 3)),
-    tf.keras.layers.MaxPooling2D(2,2),
-    tf.keras.layers.Conv2D(32, (3,3), activation='relu'),
-    tf.keras.layers.MaxPooling2D(2,2), 
-    tf.keras.layers.Conv2D(64, (3,3), activation='relu'), 
-    tf.keras.layers.MaxPooling2D(2,2),
-    tf.keras.layers.Flatten(),
-    tf.keras.layers.Dense(512, activation='relu'),
-    tf.keras.layers.Dense(1, activation='sigmoid')
-])
+from tensorflow.keras.applications.inception_v3 import InceptionV3
 
-model.summary()
+local_weights_file = '../models/inception_v3_weights_tf_dim_ordering_tf_kernels_notop.h5'
+
+pre_trained_model = InceptionV3(input_shape = (150, 150, 3), 
+                                include_top = False, 
+                                weights = None)
+
+pre_trained_model.load_weights(local_weights_file)
+
+for layer in pre_trained_model.layers:
+  layer.trainable = False
+
+last_layer = pre_trained_model.get_layer('mixed7')
+print('last layer output shape: ', last_layer.output_shape)
+last_output = last_layer.output
 
 from tensorflow.keras.optimizers import RMSprop
 
-model.compile(optimizer=RMSprop(lr=0.001),
-              loss='binary_crossentropy',
+# Flatten the output layer to 1 dimension
+x = layers.Flatten()(last_output)
+# Add a fully connected layer with 1,024 hidden units and ReLU activation
+x = layers.Dense(1024, activation='relu')(x)
+# Add a dropout rate of 0.2
+x = layers.Dropout(0.2)(x)                  
+# Add a final sigmoid layer for classification
+x = layers.Dense  (1, activation='sigmoid')(x)           
+
+model = Model( pre_trained_model.input, x) 
+
+model.compile(optimizer = RMSprop(lr=0.0001), 
+              loss = 'binary_crossentropy', 
               metrics = ['acc'])
 
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
@@ -88,30 +107,18 @@ history = model.fit_generator(
 	validation_steps=50,
 	verbose=2)
 
+import matplotlib.pyplot as plt
 
-#-----------------------------------------------------------
-# Retrieve a list of list results on training and test data
-# sets for each training epoch
-#-----------------------------------------------------------
-acc      = history.history[     'acc' ]
-val_acc  = history.history[ 'val_acc' ]
-loss     = history.history[    'loss' ]
-val_loss = history.history['val_loss' ]
+acc = history.history['acc']
+val_acc = history.history['val_acc']
+loss = history.history['loss']
+val_loss = history.history['val_loss']
 
-epochs   = range(len(acc)) # Get number of epochs
+epochs = range(len(acc))
 
-#------------------------------------------------
-# Plot training and validation accuracy per epoch
-#------------------------------------------------
-plt.plot  ( epochs,     acc )
-plt.plot  ( epochs, val_acc )
-plt.title ('Training and validation accuracy')
+plt.plot(epochs, acc, 'r', label='Training accuracy')
+plt.plot(epochs, val_acc, 'b', label='Validation accuracy')
+plt.title('Training and validation accuracy')
+plt.legend(loc=0)
 plt.figure()
-
-#------------------------------------------------
-# Plot training and validation loss per epoch
-#------------------------------------------------
-plt.plot  ( epochs,     loss )
-plt.plot  ( epochs, val_loss )
-plt.title ('Training and validation loss')
-
+plt.show()
